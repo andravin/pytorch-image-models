@@ -102,6 +102,14 @@ default_cfgs = {
     'efficientnet_eca_b2': _cfg(
         url='',
         input_size=(3, 260, 260), pool_size=(9, 9)),
+    'efficientnet_ceca_b0': _cfg(
+        url=''),
+    'efficientnet_ceca_b1': _cfg(
+        url='',
+        input_size=(3, 240, 240), pool_size=(8, 8)),
+    'efficientnet_ceca_b2': _cfg(
+        url='',
+        input_size=(3, 260, 260), pool_size=(9, 9)),
     'efficientnet_es': _cfg(
         url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/efficientnet_es_ra-f111e99c.pth'),
     'efficientnet_em': _cfg(
@@ -717,7 +725,7 @@ def _gen_efficientnet_condconv(
     return model
 
 
-def _gen_efficientnet_eca(variant, channel_multiplier=1.0, depth_multiplier=1.0, pretrained=False, **kwargs):
+def _gen_efficientnet_eca(variant, channel_multiplier=1.0, depth_multiplier=1.0, pretrained=False, attn_layer='eca', **kwargs):
     """Creates an EfficientNet model w/ ECA attention instead of SE.
 
     Ref impl: https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/efficientnet_model.py
@@ -756,7 +764,7 @@ def _gen_efficientnet_eca(variant, channel_multiplier=1.0, depth_multiplier=1.0,
         stem_size=32,
         channel_multiplier=channel_multiplier,
         act_layer=Swish,
-        attn_layer='eca',
+        attn_layer=attn_layer,
         norm_kwargs=resolve_bn_args(kwargs),
         **kwargs,
     )
@@ -1061,6 +1069,32 @@ def efficientnet_eca_b2(pretrained=False, **kwargs):
     # NOTE for train, drop_rate should be 0.3, drop_path_rate should be 0.2
     model = _gen_efficientnet_eca(
         'efficientnet_eca_b2', channel_multiplier=1.1, depth_multiplier=1.2, pretrained=pretrained, **kwargs)
+    return model
+
+@register_model
+def efficientnet_ceca_b0(pretrained=False, **kwargs):
+    """ EfficientNet-CECA-B0 """
+    # NOTE for train, drop_rate should be 0.2, drop_path_rate should be 0.2
+    model = _gen_efficientnet_eca(
+        'efficientnet_ceca_b0', attn_layer='ceca', channel_multiplier=1.0, depth_multiplier=1.0, pretrained=pretrained, **kwargs)
+    return model
+
+
+@register_model
+def efficientnet_ceca_b1(pretrained=False, **kwargs):
+    """ EfficientNet-CECA-B1 """
+    # NOTE for train, drop_rate should be 0.2, drop_path_rate should be 0.2
+    model = _gen_efficientnet_eca(
+        'efficientnet_ceca_b1', attn_layer='ceca', channel_multiplier=1.0, depth_multiplier=1.1, pretrained=pretrained, **kwargs)
+    return model
+
+
+@register_model
+def efficientnet_ceca_b2(pretrained=False, **kwargs):
+    """ EfficientNet-CECA-B2 """
+    # NOTE for train, drop_rate should be 0.3, drop_path_rate should be 0.2
+    model = _gen_efficientnet_eca(
+        'efficientnet_ceca_b2', attn_layer='ceca', channel_multiplier=1.1, depth_multiplier=1.2, pretrained=pretrained, **kwargs)
     return model
 
 

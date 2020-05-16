@@ -362,7 +362,7 @@ class EfficientNetBuilder:
         return stages
 
 
-def _init_weight_goog(m, n='', fix_group_fanout=True):
+def _init_weight_goog(m, n='', fix_group_fanout=True, fix_gain=False):
     """ Weight initialization as per Tensorflow official implementations.
 
     Args:
@@ -387,7 +387,11 @@ def _init_weight_goog(m, n='', fix_group_fanout=True):
         fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
         if fix_group_fanout:
             fan_out //= m.groups
-        m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
+        if fix_gain and m.out_channels < m.in_channels:
+            gain = 1.0
+        else:
+            gain = 2.0
+        m.weight.data.normal_(0, math.sqrt(gain / fan_out))
         if m.bias is not None:
             m.bias.data.zero_()
     elif isinstance(m, nn.BatchNorm2d):

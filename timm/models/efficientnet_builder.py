@@ -109,7 +109,7 @@ def _decode_block_str(block_str):
             pw_act=block_type == 'dsa',
             noskip=block_type == 'dsa' or noskip,
         )
-    elif block_type == 'er':
+    elif block_type == 'er' or block_type == 'ersp':
         block_args = dict(
             block_type=block_type,
             exp_kernel_size=_parse_ksize(options['k']),
@@ -263,6 +263,12 @@ class EfficientNetBuilder:
             if self.verbose:
                 logging.info('  EdgeResidual {}, Args: {}'.format(block_idx, str(ba)))
             block = EdgeResidual(**ba)
+        elif bt == 'ersp':
+            ba['drop_path_rate'] = drop_path_rate
+            ba['se_kwargs'] = self.se_kwargs
+            if self.verbose:
+                logging.info('  EdgeResidualSymmetricPad {}, Args: {}'.format(block_idx, str(ba)))
+            block = EdgeResidualSymmetricPad(**ba)
         elif bt == 'cn':
             if self.verbose:
                 logging.info('  ConvBnAct {}, Args: {}'.format(block_idx, str(ba)))

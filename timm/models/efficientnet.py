@@ -113,6 +113,9 @@ default_cfgs = {
     'efficientnet_el': _cfg(
         url='', input_size=(3, 300, 300), pool_size=(10, 10), crop_pct=0.904),
 
+    'efficientnet_esps': _cfg(url=''),
+    'efficientnet_espm': _cfg(url='', input_size=(3, 240, 240), pool_size=(8, 8), crop_pct=0.882),
+
     'efficientnet_cc_b0_4e': _cfg(url=''),
     'efficientnet_cc_b0_8e': _cfg(url=''),
     'efficientnet_cc_b1_8e': _cfg(url='', input_size=(3, 240, 240), pool_size=(8, 8), crop_pct=0.882),
@@ -777,6 +780,31 @@ def _gen_efficientnet_edge(variant, channel_multiplier=1.0, depth_multiplier=1.0
     model = _create_model(model_kwargs, default_cfgs[variant], pretrained)
     return model
 
+def _gen_efficientnet_edge_sp(variant, channel_multiplier=1.0, depth_multiplier=1.0, pretrained=False, **kwargs):
+    """ Creates an EfficientNet-EdgeTPU with Symmetric Padding model
+    """
+
+    arch_def = [
+        # NOTE `fc` is present to override a mismatch between stem channels and in chs not
+        # present in other models
+        ['ersp_r1_k2_s1_e4_c24_fc24_noskip'],
+        ['ersp_r2_k2_s2_e8_c32'],
+        ['ersp_r4_k2_s2_e8_c48'],
+        ['ir_r5_k5_s2_e8_c96'],
+        ['ir_r4_k5_s1_e8_c144'],
+        ['ir_r2_k5_s2_e8_c192'],
+    ]
+    model_kwargs = dict(
+        block_args=decode_arch_def(arch_def, depth_multiplier),
+        num_features=round_channels(1280, channel_multiplier, 8, None),
+        stem_size=32,
+        channel_multiplier=channel_multiplier,
+        norm_kwargs=resolve_bn_args(kwargs),
+        act_layer=nn.ReLU,
+        **kwargs,
+    )
+    model = _create_model(model_kwargs, default_cfgs[variant], pretrained)
+    return model
 
 def _gen_efficientnet_condconv(
         variant, channel_multiplier=1.0, depth_multiplier=1.0, experts_multiplier=1, pretrained=False, **kwargs):
@@ -1596,6 +1624,19 @@ def tf_efficientnet_el(pretrained=False, **kwargs):
         'tf_efficientnet_el', channel_multiplier=1.2, depth_multiplier=1.4, pretrained=pretrained, **kwargs)
     return model
 
+@register_model
+def efficientnet_esps(pretrained=False, **kwargs):
+    """ EfficientNet-Edge with Symmetric Padding Small. """
+    model = _gen_efficientnet_edge_sp(
+        'efficientnet_esps', channel_multiplier=1.0, depth_multiplier=1.0, pretrained=pretrained, **kwargs)
+    return model
+
+@register_model
+def efficientnet_espm(pretrained=False, **kwargs):
+    """ EfficientNet-Edge with Symmetric Padding Medium. """
+    model = _gen_efficientnet_edge_sp(
+        'efficientnet_espm', channel_multiplier=1.0, depth_multiplier=1.1, pretrained=pretrained, **kwargs)
+    return model
 
 @register_model
 def tf_efficientnet_cc_b0_4e(pretrained=False, **kwargs):

@@ -394,3 +394,87 @@ class EdgeResidual(nn.Module):
             x += residual
 
         return x
+
+class EdgeResidualSymmetricPad(nn.Module):
+    """ Residual block with expansion convolution followed by pointwise-linear w/ stride. Uses symmetric padding."""
+
+    def __init__(self, in_chs, out_chs, exp_kernel_size=2, exp_ratio=1.0, fake_in_chs=0,
+                 stride=1, dilation=1, pad_type='', act_layer=nn.ReLU, noskip=False, pw_kernel_size=1,
+                 se_ratio=0., se_kwargs=None, norm_layer=nn.BatchNorm2d, norm_kwargs=None,
+                 drop_path_rate=0.):
+        super(EdgeResidualSymmetricPad, self).__init__()
+        norm_kwargs = norm_kwargs or {}
+        if fake_in_chs > 0:
+            mid_chs = make_divisible(fake_in_chs * exp_ratio)
+        else:
+            mid_chs = make_divisible(in_chs * exp_ratio)
+        has_se = se_ratio is not None and se_ratio > 0.
+        self.has_residual = (in_chs == out_chs and stride == 1) and not noskip
+        self.drop_path_rate = drop_path_rate
+
+        # Expansion convolution
+        self.conv_exp = nn.Conv2d(in_chs, mid_chs, exp_kernel_size, padding=0, bias=False)
+        self.bn1 = norm_layer(mid_chs, **norm_kwargs)
+        self.act1 = act_layer(inplace=True)
+
+        # Squeeze-and-excitation
+        if has_se:
+            se_kwargs = resolve_se_args(se_kwargs, in_chs, act_layer)
+            self.se = SqueezeExcite(mid_chs, se_ratio=se_ratio, **se_kwargs)
+        else:
+            self.se = None
+
+        # Point-wise linear projection
+        self.conv_pwl = create_conv2d(
+            mid_chs, out_chs, pw_kernel_size, stride=stride, dilation=dilation, padding=pad_type)
+        self.bn2 = norm_layer(out_chs, **norm_kwargs)
+
+    def feature_info(self, location):
+        if location == 'expansion':
+            info = dict(module='act1', hook_type='forward', num_chs=self.conv_exp.in_channels)
+        elif location == 'depthwise':  # after SE
+            info = dict(module='conv_pwl', hook_type='forward_pre', num_chs=self.conv_pwl.in_channels)
+        else:  # location == 'bottleneck'
+            info = dict(module='', hook_type='', num_chs=self.conv_pwl.out_channels)
+        return info
+
+    def feature_channels(self, location):
+        if location == 'post_exp':
+            return self.conv_exp.out_channels
+        # location == 'pre_pw'
+        return self.conv_pwl.in_channels
+
+    def forward(self, x):
+        residual = x
+
+        # Expansion convolution
+        x = pad_symmetric(x)
+        x = self.conv_exp(x)
+        x = self.bn1(x)
+        x = self.act1(x)
+
+        # Squeeze-and-excitation
+        if self.se is not None:
+            x = self.se(x)
+
+        # Point-wise linear projection
+        x = self.conv_pwl(x)
+        x = self.bn2(x)
+
+        if self.has_residual:
+            if self.drop_path_rate > 0.:
+                x = drop_path(x, self.drop_path_rate, self.training)
+            x += residual
+
+        return x
+
+def pad_symmetric(x):
+    N,C,H,W = x.size()
+    C4 = C // 4
+    x = torch.split(x, C4, 1)
+    x = [ F.pad(x[0], (1, 0, 1, 0)),
+          F.pad(x[1], (0, 1, 1, 0)),
+          F.pad(x[2], (0, 1, 0, 1)),
+          F.pad(x[3], (1, 0, 0, 1)) ]
+    x = torch.cat(x, 1)
+    return x

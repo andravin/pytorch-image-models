@@ -58,6 +58,12 @@ try:
 except ImportError as e:
     has_functorch = False
 
+try:
+    from spio import replace_ops as spio_replace_ops
+    has_spio = True
+except ImportError as e:
+    has_spio = False
+
 has_compile = hasattr(torch, 'compile')
 
 if torch.cuda.is_available():
@@ -129,6 +135,9 @@ scripting_group.add_argument('--torchcompile', nargs='?', type=str, default=None
                              help="Enable compilation w/ specified backend (default: inductor).")
 scripting_group.add_argument('--aot-autograd', default=False, action='store_true',
                              help="Enable AOT Autograd optimization.")
+scripting_group.add_argument('--spio', default=False, action='store_true',
+                              help='Use optimized spio modules.')
+
 
 # train optimizer parameters
 parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
@@ -225,6 +234,7 @@ class BenchmarkRunner:
             torchscript=False,
             torchcompile=None,
             aot_autograd=False,
+            spio=False,
             reparam=False,
             precision='float32',
             fuser='',
@@ -284,6 +294,9 @@ class BenchmarkRunner:
             assert has_functorch, "functorch is needed for --aot-autograd"
             self.model = memory_efficient_fusion(self.model)
             self.compiled = True
+        elif spio:
+            assert has_spio, "spio needed for --spio"
+            self.model = spio_replace_ops(self.model)
 
         self.example_inputs = None
         self.num_warm_iter = num_warm_iter
@@ -366,7 +379,7 @@ class InferenceBenchmarkRunner(BenchmarkRunner):
                     macs, activations = profile_fvcore(self.model, self.input_size, force_cpu=not retries)
                     results['gmacs'] = round(macs / 1e9, 2)
                     results['macts'] = round(activations / 1e6, 2)
-            except RuntimeError as e:
+            except (RuntimeError, AssertionError) as e:
                 pass
 
         _logger.info(

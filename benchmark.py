@@ -59,7 +59,7 @@ except ImportError as e:
     has_functorch = False
 
 try:
-    from spio import replace_ops as spio_replace_ops
+    from spio.transform import transform as spio_transform
     has_spio = True
 except ImportError as e:
     has_spio = False
@@ -135,7 +135,9 @@ scripting_group.add_argument('--torchcompile', nargs='?', type=str, default=None
                              help="Enable compilation w/ specified backend (default: inductor).")
 scripting_group.add_argument('--aot-autograd', default=False, action='store_true',
                              help="Enable AOT Autograd optimization.")
-scripting_group.add_argument('--spio', default=False, action='store_true',
+
+# TODO check combination of --spio with --torchcompile
+parser.add_argument('--spio', default=False, action='store_true',
                               help='Use optimized spio modules.')
 
 
@@ -281,6 +283,10 @@ class BenchmarkRunner:
         self.input_size = data_config['input_size']
         self.batch_size = kwargs.pop('batch_size', 256)
 
+        if spio:
+            assert has_spio, "spio needed for --spio"
+            self.model = spio_transform(self.model)
+
         self.compiled = False
         if torchscript:
             self.model = torch.jit.script(self.model)
@@ -294,9 +300,6 @@ class BenchmarkRunner:
             assert has_functorch, "functorch is needed for --aot-autograd"
             self.model = memory_efficient_fusion(self.model)
             self.compiled = True
-        elif spio:
-            assert has_spio, "spio needed for --spio"
-            self.model = spio_replace_ops(self.model)
 
         self.example_inputs = None
         self.num_warm_iter = num_warm_iter

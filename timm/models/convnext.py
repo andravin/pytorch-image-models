@@ -103,6 +103,7 @@ class ConvNeXtBlock(nn.Module):
             act_layer: Union[str, Callable] = 'gelu',
             norm_layer: Optional[Callable] = None,
             drop_path: float = 0.,
+            group_width: int = None,
     ):
         """
 
@@ -129,13 +130,20 @@ class ConvNeXtBlock(nn.Module):
             norm_layer = LayerNorm2d if conv_mlp else LayerNorm
         mlp_layer = partial(GlobalResponseNormMlp if use_grn else Mlp, use_conv=conv_mlp)
         self.use_conv_mlp = conv_mlp
+        if group_width is not None:
+            groups = in_chs // group_width
+            depthwise = False
+        else:
+            groups = None
+            depthwise = True
         self.conv_dw = create_conv2d(
             in_chs,
             out_chs,
             kernel_size=kernel_size,
             stride=stride,
             dilation=dilation[0],
-            depthwise=True,
+            depthwise=depthwise,
+            groups=groups,
             bias=conv_bias,
         )
         self.norm = norm_layer(out_chs)
@@ -182,7 +190,8 @@ class ConvNeXtStage(nn.Module):
             use_grn=False,
             act_layer='gelu',
             norm_layer=None,
-            norm_layer_cl=None
+            norm_layer_cl=None,
+            group_width=None,
     ):
         super().__init__()
         self.grad_checkpointing = False
@@ -221,6 +230,7 @@ class ConvNeXtStage(nn.Module):
                 use_grn=use_grn,
                 act_layer=act_layer,
                 norm_layer=norm_layer if conv_mlp else norm_layer_cl,
+                group_width=group_width,
             ))
             in_chs = out_chs
         self.blocks = nn.Sequential(*stage_blocks)
@@ -262,6 +272,7 @@ class ConvNeXt(nn.Module):
             norm_eps: Optional[float] = None,
             drop_rate: float = 0.,
             drop_path_rate: float = 0.,
+            group_width=None,
     ):
         """
         Args:
@@ -353,6 +364,7 @@ class ConvNeXt(nn.Module):
                 act_layer=act_layer,
                 norm_layer=norm_layer,
                 norm_layer_cl=norm_layer_cl,
+                group_width=group_width,
             ))
             prev_chs = out_chs
             # NOTE feature_info use currently assumes stage 0 == stride 1, rest are stride 2
@@ -657,6 +669,9 @@ default_cfgs = generate_default_cfgs({
         url='https://dl.fbaipublicfiles.com/convnext/convnext_small_22k_1k_224.pth',
         hf_hub_id='timm/',
         test_input_size=(3, 288, 288), test_crop_pct=1.0),
+    'convnext_base_gw8.spio' : _cfg(test_input_size=(3,288, 288), test_crop_pct=1.0),
+    'convnext_tiny_gw8.spio' : _cfg(test_input_size=(3,288, 288), test_crop_pct=1.0),
+    'convnext_small_gw8.spio' : _cfg(test_input_size=(3,288, 288), test_crop_pct=1.0),
     'convnext_base.fb_in22k_ft_in1k': _cfg(
         url='https://dl.fbaipublicfiles.com/convnext/convnext_base_22k_1k_224.pth',
         hf_hub_id='timm/',
@@ -1051,6 +1066,26 @@ def convnext_tiny(pretrained=False, **kwargs) -> ConvNeXt:
 def convnext_small(pretrained=False, **kwargs) -> ConvNeXt:
     model_args = dict(depths=[3, 3, 27, 3], dims=[96, 192, 384, 768])
     model = _create_convnext('convnext_small', pretrained=pretrained, **dict(model_args, **kwargs))
+    return model
+
+
+@register_model
+def convnext_base_gw8(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], group_width=8, kernel_sizes=3)
+    model = _create_convnext('convnext_base_gw8', pretrained=pretrained, **dict(model_args, **kwargs))
+    return model
+
+@register_model
+def convnext_small_gw8(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], group_width=8, kernel_sizes=3)
+    model = _create_convnext('convnext_small_gw8', pretrained=pretrained, **dict(model_args, **kwargs))
+    return model
+
+
+@register_model
+def convnext_tiny_gw8(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], group_width=8, kernel_sizes=3)
+    model = _create_convnext('convnext_tiny_gw8', pretrained=pretrained, **dict(model_args, **kwargs))
     return model
 
 

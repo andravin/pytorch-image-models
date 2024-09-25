@@ -28,7 +28,9 @@ def create_conv2d(in_channels, out_channels, kernel_size, **kwargs):
     else:
         depthwise = kwargs.pop('depthwise', False)
         # for DW out_channels must be multiple of in_channels as must have out_channels % groups == 0
-        groups = in_channels if depthwise else kwargs.pop('groups', 1)
+        groups = kwargs.pop('groups', 1)
+        if depthwise:
+            groups = in_channels
         if 'num_experts' in kwargs and kwargs['num_experts'] > 0:
             m = CondConv2d(in_channels, out_channels, kernel_size, groups=groups, **kwargs)
         else:

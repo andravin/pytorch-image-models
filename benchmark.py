@@ -136,10 +136,10 @@ scripting_group.add_argument('--torchcompile', nargs='?', type=str, default=None
 scripting_group.add_argument('--aot-autograd', default=False, action='store_true',
                              help="Enable AOT Autograd optimization.")
 
-# TODO check combination of --spio with --torchcompile
 parser.add_argument('--spio', default=False, action='store_true',
                               help='Use optimized spio modules.')
-
+parser.add_argument('--torchcompile-mode', default=None, type=str,
+                    help="Compilation mode for torchcompile backend.")
 
 # train optimizer parameters
 parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
@@ -235,6 +235,7 @@ class BenchmarkRunner:
             device='cuda',
             torchscript=False,
             torchcompile=None,
+            torchcompile_mode=None,
             aot_autograd=False,
             spio=False,
             reparam=False,
@@ -294,7 +295,11 @@ class BenchmarkRunner:
         elif torchcompile:
             assert has_compile, 'A version of torch w/ torch.compile() is required, possibly a nightly.'
             torch._dynamo.reset()
-            self.model = torch.compile(self.model, backend=torchcompile)
+            self.model = torch.compile(
+                self.model,
+                backend=torchcompile,
+                mode=torchcompile_mode,
+            )
             self.compiled = True
         elif aot_autograd:
             assert has_functorch, "functorch is needed for --aot-autograd"

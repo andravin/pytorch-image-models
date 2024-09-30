@@ -69,6 +69,11 @@ except ImportError as e:
 
 has_compile = hasattr(torch, 'compile')
 
+try:
+    from spio.transform import transform as spio_transform
+    has_spio = True
+except ImportError as e:
+    has_spio = False
 
 _logger = logging.getLogger('train')
 
@@ -168,6 +173,11 @@ scripting_group.add_argument('--torchscript', dest='torchscript', action='store_
                              help='torch.jit.script the full model')
 scripting_group.add_argument('--torchcompile', nargs='?', type=str, default=None, const='inductor',
                              help="Enable compilation w/ specified backend (default: inductor).")
+
+parser.add_argument('--spio', default=False, action='store_true',
+                              help='Use optimized spio modules.')
+parser.add_argument('--torchcompile-mode', default=None, type=str,
+                    help="Compilation mode for torchcompile backend.")
 
 # Device & distributed
 group = parser.add_argument_group('Device parameters')
@@ -608,8 +618,11 @@ def main():
         )
         if args.resume:
             load_checkpoint(model_ema.module, args.resume, use_ema=True)
+        if args.spio:
+            assert has_spio, "spio needed for --spio"
+            model_ema.module = spio_transform(model_ema.module)
         if args.torchcompile:
-            model_ema = torch.compile(model_ema, backend=args.torchcompile)
+            model_ema = torch.compile(model_ema, backend=args.torchcompile, mode=args.torchcompile_mode)
 
     # setup distributed training
     if args.distributed:
@@ -624,10 +637,14 @@ def main():
             model = NativeDDP(model, device_ids=[device], broadcast_buffers=not args.no_ddp_bb)
         # NOTE: EMA model does not need to be wrapped by DDP
 
+    if args.spio:
+        assert has_spio, "spio needed for --spio"
+        model = spio_transform(model)
+
     if args.torchcompile:
         # torch compile should be done after DDP
         assert has_compile, 'A version of torch w/ torch.compile() is required for --compile, possibly a nightly.'
-        model = torch.compile(model, backend=args.torchcompile)
+        model = torch.compile(model, backend=args.torchcompile, mode=args.torchcompile_mode)
 
     # create the train and eval datasets
     if args.data and not args.data_dir:

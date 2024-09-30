@@ -58,13 +58,13 @@ try:
 except ImportError as e:
     has_functorch = False
 
+has_compile = hasattr(torch, 'compile')
+
 try:
     from spio.transform import transform as spio_transform
     has_spio = True
 except ImportError as e:
     has_spio = False
-
-has_compile = hasattr(torch, 'compile')
 
 if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = True

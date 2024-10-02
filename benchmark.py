@@ -15,6 +15,7 @@ from contextlib import suppress
 from functools import partial
 
 import torch
+import torch.amp
 import torch.nn as nn
 import torch.nn.parallel
 
@@ -252,7 +253,10 @@ class BenchmarkRunner:
         self.amp_dtype, self.model_dtype, self.data_dtype = resolve_precision(precision)
         self.channels_last = kwargs.pop('channels_last', False)
         if self.amp_dtype is not None:
-            self.amp_autocast = partial(torch.cuda.amp.autocast, dtype=self.amp_dtype)
+            if hasattr(torch, 'amp') and hasattr(torch.amp, 'autocast'):
+                self.amp_autocast = partial(torch.amp.autocast, "cuda", dtype=self.amp_dtype)
+            else:
+                self.amp_autocast = partial(torch.cuda.amp.autocast, dtype=self.amp_dtype)
         else:
             self.amp_autocast = suppress
 

@@ -550,6 +550,10 @@ def main():
         assert not args.sync_bn, 'Cannot use SyncBatchNorm with torchscripted model'
         model = torch.jit.script(model)
 
+    if args.spio:
+        assert has_spio, "spio needed for --spio"
+        model = spio_transform(model)
+
     if not args.lr:
         global_batch_size = args.batch_size * args.world_size * args.grad_accum_steps
         batch_ratio = global_batch_size / args.lr_base_size
@@ -636,10 +640,6 @@ def main():
                 _logger.info("Using native Torch DistributedDataParallel.")
             model = NativeDDP(model, device_ids=[device], broadcast_buffers=not args.no_ddp_bb)
         # NOTE: EMA model does not need to be wrapped by DDP
-
-    if args.spio:
-        assert has_spio, "spio needed for --spio"
-        model = spio_transform(model)
 
     if args.torchcompile:
         # torch compile should be done after DDP

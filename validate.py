@@ -226,6 +226,10 @@ def validate(args):
         assert hasattr(model, 'num_classes'), 'Model must have `num_classes` attr if not set on cmd line/config.'
         args.num_classes = model.num_classes
 
+    if args.spio:
+        assert has_spio, "spio is needed for --spio"
+        model = spio_transform(model)
+
     if args.checkpoint:
         load_checkpoint(model, args.checkpoint, args.use_ema)
 
@@ -248,10 +252,6 @@ def validate(args):
     model = model.to(device)
     if args.channels_last:
         model = model.to(memory_format=torch.channels_last)
-
-    if args.spio:
-        assert has_spio, "spio is needed for --spio"
-        model = spio_transform(model)
 
     if args.torchscript:
         assert not use_amp == 'apex', 'Cannot use APEX AMP with torchscripted model'

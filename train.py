@@ -33,7 +33,7 @@ from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
 from timm import utils
 from timm.data import create_dataset, create_loader, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset
-from timm.layers import convert_splitbn_model, convert_sync_batchnorm, set_fast_norm
+from timm.layers import convert_splitbn_model, convert_sync_batchnorm, set_fast_norm, set_use_spio
 from timm.loss import JsdCrossEntropy, SoftTargetCrossEntropy, BinaryCrossEntropy, LabelSmoothingCrossEntropy
 from timm.models import create_model, safe_model_name, resume_checkpoint, load_checkpoint, model_parameters
 from timm.optim import create_optimizer_v2, optimizer_kwargs
@@ -68,12 +68,6 @@ except ImportError as e:
     has_functorch = False
 
 has_compile = hasattr(torch, 'compile')
-
-try:
-    from spio.transform import transform as spio_transform
-    has_spio = True
-except ImportError as e:
-    has_spio = False
 
 _logger = logging.getLogger('train')
 
@@ -462,6 +456,8 @@ def main():
         utils.set_jit_fuser(args.fuser)
     if args.fast_norm:
         set_fast_norm()
+    if args.spio:
+        set_use_spio()
 
     in_chans = 3
     if args.in_chans is not None:
@@ -550,10 +546,6 @@ def main():
         assert not args.sync_bn, 'Cannot use SyncBatchNorm with torchscripted model'
         model = torch.jit.script(model)
 
-    if args.spio:
-        assert has_spio, "spio needed for --spio"
-        model = spio_transform(model)
-
     if not args.lr:
         global_batch_size = args.batch_size * args.world_size * args.grad_accum_steps
         batch_ratio = global_batch_size / args.lr_base_size
@@ -622,9 +614,6 @@ def main():
         )
         if args.resume:
             load_checkpoint(model_ema.module, args.resume, use_ema=True)
-        if args.spio:
-            assert has_spio, "spio needed for --spio"
-            model_ema.module = spio_transform(model_ema.module)
         if args.torchcompile:
             model_ema = torch.compile(model_ema, backend=args.torchcompile, mode=args.torchcompile_mode)
 

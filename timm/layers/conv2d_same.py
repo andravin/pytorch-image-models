@@ -7,11 +7,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Tuple, Optional
 
-from .config import is_exportable, is_scriptable
+from .config import is_exportable, is_scriptable, use_spio
 from .padding import pad_same, pad_same_arg, get_padding_value
 
 
 _USE_EXPORT_CONV = False
+
+
+try:
+    import spio
+    import spio.layers
+    has_spio = True
+except ImportError:
+    has_spio = False
 
 
 def conv2d_same(
@@ -105,6 +113,10 @@ def create_conv2d_pad(in_chs, out_chs, kernel_size, **kwargs):
         else:
             return Conv2dSame(in_chs, out_chs, kernel_size, **kwargs)
     else:
+        if use_spio():
+            conv = spio.layers.make_conv2d(in_chs, out_chs, kernel_size, padding=padding, **kwargs)
+            if conv is not None:
+                return conv
         return nn.Conv2d(in_chs, out_chs, kernel_size, padding=padding, **kwargs)
 
 

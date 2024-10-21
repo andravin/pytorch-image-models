@@ -6,9 +6,16 @@ from typing import Any, Optional
 
 import torch
 
+try:
+    import spio
+    has_spio = True
+except ImportError:
+    has_spio = False
+    
+
 __all__ = [
-    'is_exportable', 'is_scriptable', 'is_no_jit', 'use_fused_attn',
-    'set_exportable', 'set_scriptable', 'set_no_jit', 'set_layer_config', 'set_fused_attn'
+    'is_exportable', 'is_scriptable', 'is_no_jit', 'use_fused_attn', 'use_spio',
+    'set_exportable', 'set_scriptable', 'set_no_jit', 'set_layer_config', 'set_fused_attn', 'set_use_spio'
 ]
 
 # Set to True if prefer to have layers with no jit optimization (includes activations)
@@ -32,6 +39,13 @@ if 'TIMM_FUSED_ATTN' in os.environ:
     _USE_FUSED_ATTN = int(os.environ['TIMM_FUSED_ATTN'])
 else:
     _USE_FUSED_ATTN = 1  # 0 == off, 1 == on (for tested use), 2 == on (for experimental use)
+
+
+# Set to True if wanting to use layers from the spio package.
+_USE_SPIO = "TIMM_USE_SPIO" in os.environ
+if _USE_SPIO and not has_spio:
+    warnings.warn("spio not available, cannot enable spio layers.")
+    _USE_SPIO = False
 
 
 def is_no_jit():
@@ -147,3 +161,20 @@ def set_fused_attn(enable: bool = True, experimental: bool = False):
         _USE_FUSED_ATTN = 1
     else:
         _USE_FUSED_ATTN = 0
+
+
+def set_use_spio(enable: bool = True):
+    """Set whether to layers from the spio package."""
+    global _USE_SPIO
+    if enable:
+        if has_spio:
+            _USE_SPIO = True
+        else:
+            warnings.warn("spio not available, cannot enable spio layers.")
+    else:
+        _USE_SPIO = False
+
+
+def use_spio():
+    """Return whether to use layers from the spio package."""
+    return _USE_SPIO

@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.nn.parallel
 
 from timm.data import resolve_data_config
-from timm.layers import set_fast_norm
+from timm.layers import set_fast_norm, set_use_spio
 from timm.models import create_model, is_model, list_models
 from timm.optim import create_optimizer_v2
 from timm.utils import setup_default_logging, set_jit_fuser, decay_batch_step, check_batch_size_retry, ParseKwargs,\
@@ -61,11 +61,6 @@ except ImportError as e:
 
 has_compile = hasattr(torch, 'compile')
 
-try:
-    from spio.transform import transform as spio_transform
-    has_spio = True
-except ImportError as e:
-    has_spio = False
 
 if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -238,7 +233,6 @@ class BenchmarkRunner:
             torchcompile=None,
             torchcompile_mode=None,
             aot_autograd=False,
-            spio=False,
             reparam=False,
             precision='float32',
             fuser='',
@@ -287,10 +281,6 @@ class BenchmarkRunner:
         data_config = resolve_data_config(kwargs, model=self.model, use_test_size=not use_train_size)
         self.input_size = data_config['input_size']
         self.batch_size = kwargs.pop('batch_size', 256)
-
-        if spio:
-            assert has_spio, "spio needed for --spio"
-            self.model = spio_transform(self.model)
 
         self.compiled = False
         if torchscript:
@@ -661,6 +651,8 @@ def main():
 
     if args.fast_norm:
         set_fast_norm()
+    if args.spio:
+        set_use_spio()
 
     if args.model_list:
         args.model = ''

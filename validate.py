@@ -23,7 +23,7 @@ import torch.nn as nn
 import torch.nn.parallel
 
 from timm.data import create_dataset, create_loader, resolve_data_config, RealLabelsImagenet
-from timm.layers import apply_test_time_pool, set_fast_norm
+from timm.layers import apply_test_time_pool, set_fast_norm, set_use_spio
 from timm.models import create_model, load_checkpoint, is_model, list_models
 from timm.utils import accuracy, AverageMeter, natural_key, setup_default_logging, set_jit_fuser, \
     decay_batch_step, check_batch_size_retry, ParseKwargs, reparameterize_model
@@ -48,12 +48,6 @@ except ImportError as e:
     has_functorch = False
 
 has_compile = hasattr(torch, 'compile')
-
-try:
-    from spio.transform import transform as spio_transform
-    has_spio = True
-except ImportError as e:
-    has_spio = False
 
 _logger = logging.getLogger('validate')
 
@@ -206,6 +200,9 @@ def validate(args):
     if args.fast_norm:
         set_fast_norm()
 
+    if args.spio:
+        set_use_spio()
+
     # create model
     in_chans = 3
     if args.in_chans is not None:
@@ -225,10 +222,6 @@ def validate(args):
     if args.num_classes is None:
         assert hasattr(model, 'num_classes'), 'Model must have `num_classes` attr if not set on cmd line/config.'
         args.num_classes = model.num_classes
-
-    if args.spio:
-        assert has_spio, "spio is needed for --spio"
-        model = spio_transform(model)
 
     if args.checkpoint:
         load_checkpoint(model, args.checkpoint, args.use_ema)

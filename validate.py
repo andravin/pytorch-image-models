@@ -49,6 +49,13 @@ except ImportError as e:
 
 has_compile = hasattr(torch, 'compile')
 
+try:
+    import spio
+    from spio.transform import transform as spio_transform
+    has_spio = True
+except ImportError:
+    has_spio = False
+
 _logger = logging.getLogger('validate')
 
 
@@ -151,6 +158,8 @@ scripting_group.add_argument('--aot-autograd', default=False, action='store_true
 
 parser.add_argument('--spio', default=False, action='store_true',
                     help="Use kernels from the spio package.")
+parser.add_argument('--spio-transform', default=False, action='store_true',
+                    help='Transform model to use Spio modules.')
 
 parser.add_argument('--results-file', default='', type=str, metavar='FILENAME',
                     help='Output csv file for validation results (summary)')
@@ -201,6 +210,8 @@ def validate(args):
         set_fast_norm()
 
     if args.spio:
+        if args.spio_transform:
+            raise ValueError('--spio and --spio-transform cannot be used together.')
         set_use_spio()
 
     # create model
@@ -245,6 +256,11 @@ def validate(args):
     model = model.to(device)
     if args.channels_last:
         model = model.to(memory_format=torch.channels_last)
+
+    if args.spio_transform:
+        if not has_spio:
+            raise ValueError('--spio-transform requires spio to be installed.')
+        model = spio_transform(model)
 
     if args.torchscript:
         assert not use_amp == 'apex', 'Cannot use APEX AMP with torchscripted model'

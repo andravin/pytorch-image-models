@@ -51,6 +51,7 @@ from ._builder import build_model_with_cfg
 from ._features import feature_take_indices
 from ._manipulate import named_apply, checkpoint_seq
 from ._registry import generate_default_cfgs, register_model, register_model_deprecations
+from ..layers import use_spio
 
 __all__ = ['ConvNeXt']  # model_registry will add each entrypoint fn to this
 
@@ -127,7 +128,7 @@ class ConvNeXtBlock(nn.Module):
         dilation = to_ntuple(2)(dilation)
         act_layer = get_act_layer(act_layer)
         if not norm_layer:
-            norm_layer = LayerNorm2d if conv_mlp else LayerNorm
+            norm_layer = LayerNorm2d if conv_mlp or use_spio() else LayerNorm
         mlp_layer = partial(GlobalResponseNormMlp if use_grn else Mlp, use_conv=conv_mlp)
         self.use_conv_mlp = conv_mlp
         if group_size is not None:
@@ -162,8 +163,11 @@ class ConvNeXtBlock(nn.Module):
             x = self.norm(x)
             x = self.mlp(x)
         else:
-            x = x.permute(0, 2, 3, 1)
+            if not use_spio():
+                x = x.permute(0, 2, 3, 1)
             x = self.norm(x)
+            if use_spio():
+                x = x.permute(0, 2, 3, 1)
             x = self.mlp(x)
             x = x.permute(0, 3, 1, 2)
         if self.gamma is not None:
@@ -302,7 +306,7 @@ class ConvNeXt(nn.Module):
         kernel_sizes = to_ntuple(4)(kernel_sizes)
         if norm_layer is None:
             norm_layer = LayerNorm2d
-            norm_layer_cl = norm_layer if conv_mlp else LayerNorm
+            norm_layer_cl = norm_layer if conv_mlp or use_spio() else LayerNorm
             if norm_eps is not None:
                 norm_layer = partial(norm_layer, eps=norm_eps)
                 norm_layer_cl = partial(norm_layer_cl, eps=norm_eps)
